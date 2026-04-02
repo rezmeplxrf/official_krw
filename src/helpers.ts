@@ -31,6 +31,16 @@ export function formatDate(date: Date): string {
 	return `${y}${m}${d}`;
 }
 
+/** Parse yyyyMMdd string and return the previous day as yyyyMMdd. */
+export function prevDay(dateStr: string): string {
+	const y = Number(dateStr.slice(0, 4));
+	const m = Number(dateStr.slice(4, 6)) - 1; // 0-indexed
+	const d = Number(dateStr.slice(6, 8));
+	const date = new Date(y, m, d);
+	date.setDate(date.getDate() - 1);
+	return formatDate(date);
+}
+
 export function todayKST(): string {
 	const now = new Date();
 	const kst = new Date(now.getTime() + 9 * 60 * 60_000);

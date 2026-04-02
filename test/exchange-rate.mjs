@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { after, describe, it } from "node:test";
 
-const { applyJsonata, formatDate, todayKST } = await import(
+const { applyJsonata, formatDate, prevDay, todayKST } = await import(
 	"../dist/helpers.js"
 );
 const { config } = await import("../dist/config.js");
@@ -61,6 +61,24 @@ describe("formatDate", () => {
 	it("pads single-digit month and day", () => {
 		const d = new Date(2026, 0, 5);
 		assert.equal(formatDate(d), "20260105");
+	});
+});
+
+describe("prevDay", () => {
+	it("returns the previous day", () => {
+		assert.equal(prevDay("20260402"), "20260401");
+	});
+
+	it("crosses month boundary", () => {
+		assert.equal(prevDay("20260301"), "20260228");
+	});
+
+	it("crosses year boundary", () => {
+		assert.equal(prevDay("20260101"), "20251231");
+	});
+
+	it("handles leap year", () => {
+		assert.equal(prevDay("20240301"), "20240229");
 	});
 });
 
@@ -136,5 +154,12 @@ describe("cache", () => {
 		const first = await testCache.get("historical", "20250101");
 		const second = await testCache.get("historical", "20250101");
 		assert.deepEqual(first, second);
+	});
+
+	it("caches and retrieves empty arrays (holiday sentinel)", async () => {
+		await testCache.set("historical", [], "20260101");
+		const result = await testCache.get("historical", "20260101");
+		assert.deepEqual(result, []);
+		assert.notEqual(result, null);
 	});
 });
