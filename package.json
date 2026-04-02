@@ -1,6 +1,6 @@
 {
 	"name": "official-krw",
-	"version": "1.0.0",
+	"version": "1.0.1",
 	"description": "Korea Eximbank exchange rate MCP server",
 	"type": "module",
 	"main": "dist/index.js",
