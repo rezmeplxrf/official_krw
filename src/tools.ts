@@ -1,7 +1,16 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import { createCache } from "./cache.js";
 import { config } from "./config.js";
-import { applyJsonata, err, formatDate, ok } from "./helpers.js";
+import { applyJsonata, err, formatDate, ok, todayKST } from "./helpers.js";
+
+const cache = createCache({
+	dir: config.cacheDir,
+	ttls: {
+		today: config.cacheTtls.today,
+		historical: config.cacheTtls.historical,
+	},
+});
 
 interface ExchangeRateRaw {
 	result: number;
@@ -70,36 +79,46 @@ export function registerTools(server: McpServer): void {
 					? search_date.replace(/-/g, "")
 					: formatDate(new Date());
 
-				const url = new URL(config.apiUrl);
-				url.searchParams.set("authkey", config.apiKey);
-				url.searchParams.set("searchdate", dateStr);
-				url.searchParams.set("data", config.dataCode);
+				const bucket = dateStr === todayKST() ? "today" : "historical";
+				const cached = await cache.get<ExchangeRateRaw[]>(bucket, dateStr);
 
-				const response = await fetch(url.toString());
-				if (!response.ok) {
-					return err(
-						`API request failed: ${response.status} ${response.statusText}`,
-					);
-				}
+				let data: ExchangeRateRaw[];
+				if (cached) {
+					data = cached;
+				} else {
+					const url = new URL(config.apiUrl);
+					url.searchParams.set("authkey", config.apiKey);
+					url.searchParams.set("searchdate", dateStr);
+					url.searchParams.set("data", config.dataCode);
 
-				const data: ExchangeRateRaw[] = await response.json();
+					const response = await fetch(url.toString());
+					if (!response.ok) {
+						return err(
+							`API request failed: ${response.status} ${response.statusText}`,
+						);
+					}
 
-				if (data.length === 0) {
-					return ok(
-						`No exchange rate data available for ${search_date ?? dateStr}. ` +
-							"The API may not have data for weekends or holidays.",
-					);
-				}
+					data = await response.json();
 
-				if (data[0].result !== 1) {
-					const codes: Record<number, string> = {
-						2: "Invalid DATA code",
-						3: "Authentication failed — check KOREAEXIM_API_KEY",
-						4: "Invalid date format",
-					};
-					return err(
-						codes[data[0].result] ?? `Unknown error code: ${data[0].result}`,
-					);
+					if (data.length === 0) {
+						return ok(
+							`No exchange rate data available for ${search_date ?? dateStr}. ` +
+								"The API may not have data for weekends or holidays.",
+						);
+					}
+
+					if (data[0].result !== 1) {
+						const codes: Record<number, string> = {
+							2: "Invalid DATA code",
+							3: "Authentication failed — check KOREAEXIM_API_KEY",
+							4: "Invalid date format",
+						};
+						return err(
+							codes[data[0].result] ?? `Unknown error code: ${data[0].result}`,
+						);
+					}
+
+					await cache.set(bucket, data, dateStr);
 				}
 
 				const jsonataQuery = query ?? config.defaultQuery;

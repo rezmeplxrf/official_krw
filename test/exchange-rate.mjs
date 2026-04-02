@@ -1,8 +1,14 @@
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { after, describe, it } from "node:test";
 
-const { applyJsonata, formatDate } = await import("../dist/helpers.js");
+const { applyJsonata, formatDate, todayKST } = await import(
+	"../dist/helpers.js"
+);
 const { config } = await import("../dist/config.js");
+const { createCache } = await import("../dist/cache.js");
 
 const FIXTURE = [
 	{
@@ -94,5 +100,41 @@ describe("custom JSONata queries", () => {
 		const result = JSON.parse(await applyJsonata(FIXTURE));
 		assert.equal(result.length, 3);
 		assert.equal(result[0].cur_unit, "USD");
+	});
+});
+
+describe("todayKST", () => {
+	it("returns 8-digit date string", () => {
+		const result = todayKST();
+		assert.match(result, /^\d{8}$/);
+	});
+});
+
+describe("cache", () => {
+	const testDir = path.join(os.tmpdir(), `official-krw-test-${Date.now()}`);
+	const testCache = createCache({
+		dir: testDir,
+		ttls: { today: 5 * 60_000, historical: 90 * 24 * 60 * 60_000 },
+	});
+
+	after(async () => {
+		await fs.rm(testDir, { recursive: true, force: true });
+	});
+
+	it("returns null on cache miss", async () => {
+		const result = await testCache.get("today", "20260402");
+		assert.equal(result, null);
+	});
+
+	it("stores and retrieves data", async () => {
+		await testCache.set("historical", FIXTURE, "20250101");
+		const result = await testCache.get("historical", "20250101");
+		assert.deepEqual(result, FIXTURE);
+	});
+
+	it("returns same data on second get", async () => {
+		const first = await testCache.get("historical", "20250101");
+		const second = await testCache.get("historical", "20250101");
+		assert.deepEqual(first, second);
 	});
 });

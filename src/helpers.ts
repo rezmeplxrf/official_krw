@@ -30,3 +30,12 @@ export function formatDate(date: Date): string {
 	const d = String(date.getDate()).padStart(2, "0");
 	return `${y}${m}${d}`;
 }
+
+export function todayKST(): string {
+	const now = new Date();
+	const kst = new Date(now.getTime() + 9 * 60 * 60_000);
+	const y = kst.getUTCFullYear();
+	const m = String(kst.getUTCMonth() + 1).padStart(2, "0");
+	const d = String(kst.getUTCDate()).padStart(2, "0");
+	return `${y}${m}${d}`;
+}
